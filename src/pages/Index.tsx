@@ -1,12 +1,36 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import React, { useState } from 'react';
+import { Header } from '@/components/Header';
+import { EnergyDashboard } from '@/components/EnergyDashboard';
+import { RenewableEnergyChat } from '@/components/RenewableEnergyChat';
+import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
+  const { toast } = useToast();
+  const [activeView, setActiveView] = useState<'dashboard' | 'chat'>('dashboard');
+
+  const handleSchemeSelect = (scheme: any) => {
+    setActiveView('chat');
+    toast({
+      title: "Scheme Selected",
+      description: `Switched to chat to learn more about ${scheme.name}`,
+    });
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Header activeView={activeView} onViewChange={setActiveView} />
+      
+      <main className="container mx-auto px-4 py-6">
+        <div className="max-w-6xl mx-auto">
+          {activeView === 'dashboard' ? (
+            <EnergyDashboard onSchemeSelect={handleSchemeSelect} />
+          ) : (
+            <div className="h-[calc(100vh-160px)]">
+              <RenewableEnergyChat />
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 };
