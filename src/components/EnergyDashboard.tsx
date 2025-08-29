@@ -126,14 +126,14 @@ export const EnergyDashboard: React.FC<EnergyDashboardProps> = ({ onSchemeSelect
       {/* Hero Section */}
       <div className="bg-gradient-hero rounded-xl p-6 text-primary-foreground shadow-glow">
         <h1 className="text-2xl lg:text-3xl font-bold mb-2">
-          Renewable Energy Assistant
+          नवीकरणीय ऊर्जा सहायक
         </h1>
         <p className="text-primary-foreground/90 mb-4">
           Government schemes and renewable energy solutions for rural India
         </p>
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4" />
-          <span>Government of India | Ministry of New & Renewable Energy</span>
+          <span>भारत सरकार | Ministry of New & Renewable Energy</span>
         </div>
       </div>
 

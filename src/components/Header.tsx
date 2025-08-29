@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ activeView, onViewChange }) => {
                 Rural Energy Helper
               </h1>
               <p className="text-primary-foreground/80 text-sm">
-                Renewable Energy Assistant
+                नवीकरणीय ऊर्जा सहायक
               </p>
             </div>
           </div>
