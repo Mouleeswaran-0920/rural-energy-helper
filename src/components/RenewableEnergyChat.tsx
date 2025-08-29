@@ -130,7 +130,7 @@ export const RenewableEnergyChat = () => {
           'HTTP-Referer': window.location.href,
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-3.1-8b-instruct:free',
+          model: "microsoft/phi-3-medium-128k-instruct:free",
           messages: [
             {
               role: "system",
