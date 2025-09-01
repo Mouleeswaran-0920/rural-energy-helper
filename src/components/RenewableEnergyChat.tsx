@@ -2,15 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, MicOff, Send, Volume2, VolumeX, Zap, Wind, Sun, Droplets, Sprout } from 'lucide-react';
+import { Mic, MicOff, Send, Volume2, VolumeX, Zap, Wind, Sun, Droplets, Sprout, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useChatHistory, ChatMessage } from '@/hooks/useChatHistory';
+import { ChatSidebar } from './ChatSidebar';
 
-interface Message {
-  id: string;
-  content: string;
-  isUser: boolean;
-  timestamp: Date;
-}
+// Remove local interface since we're using the one from useChatHistory
 
 // Speech Recognition types
 interface SpeechRecognitionEvent extends Event {
@@ -54,20 +51,31 @@ const API_KEY = 'sk-or-v1-c2d5cb3cf134247b6b8a714ddaf078dc71ff5e0222ecf8f054cafa
 
 export const RenewableEnergyChat = () => {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      content: "Hello! I'm your renewable energy assistant. I can help you with information about solar energy, wind power, biogas systems, and government schemes for rural areas. How can I assist you today?",
-      isUser: false,
-      timestamp: new Date()
-    }
-  ]);
+  const {
+    sessions,
+    currentSessionId,
+    messages,
+    loading: historyLoading,
+    setMessages,
+    loadMessages,
+    createNewSession,
+    saveMessage,
+    deleteSession,
+  } = useChatHistory();
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  // Auto-create first session if none exists
+  useEffect(() => {
+    if (sessions.length === 0 && !currentSessionId && !historyLoading) {
+      createNewSession();
+    }
+  }, [sessions.length, currentSessionId, historyLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -108,16 +116,20 @@ export const RenewableEnergyChat = () => {
   }, [toast]);
 
   const sendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !currentSessionId) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content: inputMessage,
       isUser: true,
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Add message to local state and save to database
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    await saveMessage(userMessage);
+    
     setInputMessage('');
     setIsLoading(true);
 
@@ -195,7 +207,7 @@ export const RenewableEnergyChat = () => {
         throw new Error(`All models failed -> ${errors.join(" | ")}`);
       }
 
-      const aiMessage: Message = {
+      const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: aiResponseText,
         isUser: false,
@@ -203,6 +215,7 @@ export const RenewableEnergyChat = () => {
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      await saveMessage(aiMessage);
       
       // Auto-speak the response
       speakMessage(aiResponseText);
@@ -270,114 +283,151 @@ export const RenewableEnergyChat = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Quick Actions */}
-      <div className="p-4 border-b bg-gradient-card">
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">Quick Topics</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {quickActions.map((action, index) => (
+    <div className="flex h-full bg-background">
+      {/* Sidebar */}
+      {showSidebar && (
+        <div className="w-80 border-r">
+          <ChatSidebar
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            onSelectSession={loadMessages}
+            onCreateSession={() => {
+              createNewSession();
+              setShowSidebar(false);
+            }}
+            onDeleteSession={deleteSession}
+          />
+        </div>
+      )}
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header with History Toggle */}
+        <div className="p-4 border-b bg-gradient-card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-muted-foreground">Quick Topics</h3>
             <Button
-              key={index}
               variant="outline"
               size="sm"
-              onClick={() => handleQuickAction(action.query)}
-              className="h-auto p-3 flex flex-col gap-2 hover:bg-primary-light hover:border-primary transition-all duration-200"
+              onClick={() => setShowSidebar(!showSidebar)}
+              className="gap-2"
             >
-              <action.icon className="w-5 h-5 text-primary" />
-              <span className="text-xs">{action.label}</span>
+              <History className="w-4 h-4" />
+              Chat History
             </Button>
-          ))}
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            {quickActions.map((action, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                size="sm"
+                onClick={() => handleQuickAction(action.query)}
+                className="h-auto p-3 flex flex-col gap-2 hover:bg-primary-light hover:border-primary transition-all duration-200"
+              >
+                <action.icon className="w-5 h-5 text-primary" />
+                <span className="text-xs">{action.label}</span>
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-          >
-            <Card className={`max-w-[80%] ${
-              message.isUser 
-                ? 'bg-gradient-primary text-primary-foreground shadow-soft' 
-                : 'bg-card shadow-card'
-            }`}>
-              <CardContent className="p-4">
-                <p className="text-sm leading-relaxed">{message.content}</p>
-                <p className="text-xs opacity-70 mt-2">
-                  {message.timestamp.toLocaleTimeString()}
-                </p>
-                {!message.isUser && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => speakMessage(message.content)}
-                    className="mt-2 h-6 px-2 text-xs"
-                  >
-                    <Volume2 className="w-3 h-3 mr-1" />
-                    Listen
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <Card className="bg-card shadow-card">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                  <div className="animate-bounce w-2 h-2 bg-primary rounded-full"></div>
-                  <div className="animate-bounce w-2 h-2 bg-primary rounded-full" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="animate-bounce w-2 h-2 bg-primary rounded-full" style={{ animationDelay: '0.2s' }}></div>
-                  <span className="text-sm text-muted-foreground ml-2">Thinking...</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Area */}
-      <div className="p-4 border-t bg-gradient-card">
-        <div className="flex gap-2">
-          <div className="flex-1 relative">
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Ask about renewable energy schemes..."
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              className="pr-20"
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={isListening ? stopListening : startListening}
-                className={`h-7 w-7 p-0 ${isListening ? 'animate-pulse-glow' : ''}`}
-                disabled={isLoading}
-              >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={isSpeaking ? stopSpeaking : () => {}}
-                className="h-7 w-7 p-0"
-                disabled={!isSpeaking}
-              >
-                {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 opacity-50" />}
-              </Button>
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {historyLoading ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          </div>
-          <Button onClick={sendMessage} disabled={isLoading || !inputMessage.trim()}>
-            <Send className="w-4 h-4" />
-          </Button>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+              >
+                <Card className={`max-w-[80%] ${
+                  message.isUser 
+                    ? 'bg-gradient-primary text-primary-foreground shadow-soft' 
+                    : 'bg-card shadow-card'
+                }`}>
+                  <CardContent className="p-4">
+                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <p className="text-xs opacity-70 mt-2">
+                      {message.timestamp.toLocaleTimeString()}
+                    </p>
+                    {!message.isUser && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => speakMessage(message.content)}
+                        className="mt-2 h-6 px-2 text-xs"
+                      >
+                        <Volume2 className="w-3 h-3 mr-1" />
+                        Listen
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ))
+          )}
+          {isLoading && (
+            <div className="flex justify-start">
+              <Card className="bg-card shadow-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-bounce w-2 h-2 bg-primary rounded-full"></div>
+                    <div className="animate-bounce w-2 h-2 bg-primary rounded-full" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="animate-bounce w-2 h-2 bg-primary rounded-full" style={{ animationDelay: '0.2s' }}></div>
+                    <span className="text-sm text-muted-foreground ml-2">Thinking...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
         </div>
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          Click the mic icon to speak or type your question about renewable energy
-        </p>
+
+        {/* Input Area */}
+        <div className="p-4 border-t bg-gradient-card">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Ask about renewable energy schemes..."
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                className="pr-20"
+                disabled={!currentSessionId}
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`h-7 w-7 p-0 ${isListening ? 'animate-pulse-glow' : ''}`}
+                  disabled={isLoading || !currentSessionId}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={isSpeaking ? stopSpeaking : () => {}}
+                  className="h-7 w-7 p-0"
+                  disabled={!isSpeaking}
+                >
+                  {isSpeaking ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 opacity-50" />}
+                </Button>
+              </div>
+            </div>
+            <Button onClick={sendMessage} disabled={isLoading || !inputMessage.trim() || !currentSessionId}>
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Click the mic icon to speak or type your question about renewable energy
+          </p>
+        </div>
       </div>
     </div>
   );
