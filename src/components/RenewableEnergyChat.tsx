@@ -56,8 +56,8 @@ export const RenewableEnergyChat = () => {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      content: 'नमस्ते! मैं आपका नवीकरणीय ऊर्जा सहायक हूं। मैं आपको सौर ऊर्जा, पवन ऊर्जा, और सरकारी योजनाओं के बारे में जानकारी दे सकता हूं। आप कैसे मदद कर सकता हूं?',
+      id: "1",
+      content: "Hello! I'm your renewable energy assistant. I can help you with information about solar energy, wind power, biogas systems, and government schemes for rural areas. How can I assist you today?",
       isUser: false,
       timestamp: new Date()
     }
@@ -84,7 +84,7 @@ export const RenewableEnergyChat = () => {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'hi-IN'; // Hindi language
+      recognitionRef.current.lang = "en-IN"; // English language
 
       recognitionRef.current.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
@@ -122,66 +122,97 @@ export const RenewableEnergyChat = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.href,
+      const modelCandidates = [
+        "qwen/qwen-2.5-7b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "microsoft/phi-3-medium-128k-instruct:free",
+      ];
+
+      const TIMEOUT_MS = 20000;
+
+      const messagesPayload = [
+        {
+          role: "system",
+          content:
+            "You are an expert renewable energy advisor specifically trained on MNRE (Ministry of New and Renewable Energy) data and policies. You help rural communities understand renewable energy options, government schemes, and subsidies. Always respond in clear, simple English. Focus on: \n\n1. Solar energy systems and rooftop schemes\n2. Wind energy for small scale applications\n3. Biogas and biomass options\n4. Government subsidies and schemes like PM-KUSUM, Rooftop Solar Scheme\n5. Rural energy solutions and micro-grids\n6. Energy efficiency measures\n7. Financial assistance and loan schemes\n\nKeep responses practical, actionable, and relevant to rural communities. Always include relevant government scheme details when applicable.",
         },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-3.1-8b-instruct:free',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert renewable energy advisor specifically trained on MNRE (Ministry of New and Renewable Energy) data and policies. You help rural communities understand renewable energy options, government schemes, and subsidies. Always respond in Hindi if the user speaks Hindi, otherwise in English. Focus on:
+        ...messages.slice(-5).map((msg) => ({
+          role: msg.isUser ? "user" : "assistant",
+          content: msg.content,
+        })),
+        {
+          role: "user",
+          content: inputMessage,
+        },
+      ];
 
-1. Solar energy systems and rooftop schemes
-2. Wind energy for small scale applications
-3. Biogas and biomass options
-4. Government subsidies and schemes like PM-KUSUM, Rooftop Solar Scheme
-5. Rural energy solutions and micro-grids
-6. Energy efficiency measures
-7. Financial assistance and loan schemes
+      const errors: string[] = [];
+      let aiResponseText: string | null = null;
 
-Keep responses practical, actionable, and relevant to rural communities. Always include relevant government scheme details when applicable.`
-            },
-            ...messages.slice(-5).map(msg => ({
-              role: msg.isUser ? 'user' : 'assistant',
-              content: msg.content
-            })),
+      for (const model of modelCandidates) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+          const response = await fetch(
+            "https://openrouter.ai/api/v1/chat/completions",
             {
-              role: 'user',
-              content: inputMessage
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${API_KEY}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": window.location.href,
+                "X-Title": "Rural Energy Helper",
+              },
+              body: JSON.stringify({ model, messages: messagesPayload }),
+              signal: controller.signal,
             }
-          ]
-        })
-      });
+          );
 
-      if (!response.ok) {
-        throw new Error('Failed to get response');
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            const errJson = await response.json().catch(() => ({} as any));
+            errors.push(`${model}: ${response.status} ${(errJson?.error?.message || response.statusText)}`);
+            continue; // try next model
+          }
+
+          const data = await response.json();
+          aiResponseText = data.choices?.[0]?.message?.content;
+          if (!aiResponseText) {
+            errors.push(`${model}: Empty response`);
+            continue;
+          }
+
+          break; // success
+        } catch (e: any) {
+          errors.push(`${model}: ${e?.message || "network error"}`);
+          continue; // try next model
+        }
       }
 
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || 'Sorry, I could not understand your query.';
+      if (!aiResponseText) {
+        throw new Error(`All models failed -> ${errors.join(" | ")}`);
+      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: aiResponse,
+        content: aiResponseText,
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, aiMessage]);
       
       // Auto-speak the response
-      speakMessage(aiResponse);
+      speakMessage(aiResponseText);
     } catch (error) {
       console.error('Error:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to get response. Please try again.';
       toast({
-        title: "Error",
-        description: "Failed to get response. Please try again.",
-        variant: "destructive",
+        title: 'Model error',
+        description: msg,
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -208,7 +239,7 @@ Keep responses practical, actionable, and relevant to rural communities. Always 
       window.speechSynthesis.cancel();
       
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'hi-IN';
+      utterance.lang = "en-IN";
       utterance.rate = 0.8;
       utterance.pitch = 1;
       
@@ -228,10 +259,10 @@ Keep responses practical, actionable, and relevant to rural communities. Always 
   };
 
   const quickActions = [
-    { icon: Sun, label: 'Solar Energy', query: 'Tell me about solar energy schemes for rural areas' },
-    { icon: Wind, label: 'Wind Power', query: 'What are small wind energy options?' },
-    { icon: Droplets, label: 'Hydro Power', query: 'Micro hydro power for villages' },
-    { icon: Sprout, label: 'Biogas', query: 'Government biogas schemes and subsidies' }
+    { icon: Sun, label: "Solar Energy", query: "Tell me about solar energy schemes for rural areas" },
+    { icon: Wind, label: "Wind Power", query: "What are small wind energy options?" },
+    { icon: Droplets, label: "Hydro Power", query: "Micro hydro power for villages" },
+    { icon: Sprout, label: "Biogas", query: "Government biogas schemes and subsidies" }
   ];
 
   const handleQuickAction = (query: string) => {
