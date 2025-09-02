@@ -8,7 +8,10 @@ const Index = () => {
   const { toast } = useToast();
   const [activeView, setActiveView] = useState<'dashboard' | 'chat'>('dashboard');
 
+  const [selectedScheme, setSelectedScheme] = useState<any>(null);
+
   const handleSchemeSelect = (scheme: any) => {
+    setSelectedScheme(scheme);
     setActiveView('chat');
     toast({
       title: "Scheme Selected",
@@ -26,7 +29,7 @@ const Index = () => {
             <EnergyDashboard onSchemeSelect={handleSchemeSelect} />
           ) : (
             <div className="h-[calc(100vh-160px)]">
-              <RenewableEnergyChat />
+              <RenewableEnergyChat selectedScheme={selectedScheme} onSchemeProcessed={() => setSelectedScheme(null)} />
             </div>
           )}
         </div>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Zap, MessageCircle, LayoutDashboard, LogOut } from 'lucide-react';
+import { MessageCircle, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import ecologyIcon from '@/assets/ecology-icon.png';
 
 interface HeaderProps {
   activeView: 'dashboard' | 'chat';
@@ -17,7 +18,7 @@ export const Header: React.FC<HeaderProps> = ({ activeView, onViewChange }) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary-foreground/10 rounded-lg">
-              <Zap className="w-8 h-8 text-primary-foreground animate-pulse-glow" />
+              <img src={ecologyIcon} alt="Ecology Icon" className="w-8 h-8 animate-pulse-glow" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-primary-foreground">

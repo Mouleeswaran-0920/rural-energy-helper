@@ -49,7 +49,15 @@ declare global {
 
 const API_KEY = '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';
 
-export const RenewableEnergyChat = () => {
+interface RenewableEnergyChatProps {
+  selectedScheme?: any;
+  onSchemeProcessed?: () => void;
+}
+
+export const RenewableEnergyChat: React.FC<RenewableEnergyChatProps> = ({ 
+  selectedScheme, 
+  onSchemeProcessed 
+}) => {
   const { toast } = useToast();
   const {
     sessions,
@@ -76,6 +84,15 @@ export const RenewableEnergyChat = () => {
       createNewSession();
     }
   }, [sessions.length, currentSessionId, historyLoading]);
+
+  // Handle selected scheme from dashboard
+  useEffect(() => {
+    if (selectedScheme && currentSessionId) {
+      const schemeQuery = `Tell me everything about the ${selectedScheme.name} scheme. I want to know about eligibility criteria, application process, subsidies, benefits, and how to apply for it.`;
+      setInputMessage(schemeQuery);
+      onSchemeProcessed?.();
+    }
+  }, [selectedScheme, currentSessionId, onSchemeProcessed]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
