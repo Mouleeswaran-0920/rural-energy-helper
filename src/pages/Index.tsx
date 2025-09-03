@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Header } from '@/components/Header';
 import { EnergyDashboard } from '@/components/EnergyDashboard';
-import { RenewableEnergyChat } from '@/components/RenewableEnergyChat';
+import { EnhancedChat } from '@/components/EnhancedChat';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
@@ -29,7 +29,7 @@ const Index = () => {
             <EnergyDashboard onSchemeSelect={handleSchemeSelect} />
           ) : (
             <div className="h-[calc(100vh-160px)]">
-              <RenewableEnergyChat selectedScheme={selectedScheme} onSchemeProcessed={() => setSelectedScheme(null)} />
+              <EnhancedChat selectedScheme={selectedScheme} onSchemeProcessed={() => setSelectedScheme(null)} />
             </div>
           )}
         </div>
