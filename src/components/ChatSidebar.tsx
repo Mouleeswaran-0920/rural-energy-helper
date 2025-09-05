@@ -2,8 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, MessageSquare, Trash2, LogOut } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { ChatSession } from '@/hooks/useChatHistory';
 import { cn } from '@/lib/utils';
 
@@ -24,8 +23,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onDeleteSession,
   className,
 }) => {
-  const { user, signOut } = useAuth();
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -52,23 +49,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        
-        {user && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-medium">
-              {user.email?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <span className="truncate flex-1">{user.email}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={signOut}
-              className="h-6 w-6 p-0 opacity-70 hover:opacity-100"
-            >
-              <LogOut className="w-3 h-3" />
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Chat Sessions */}
