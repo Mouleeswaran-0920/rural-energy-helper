@@ -11,7 +11,7 @@ import { ChatSidebar } from './ChatSidebar';
 import { VoiceAssistant } from './VoiceAssistant';
 import { ragSystem } from '@/utils/ragSystem';
 
-const API_KEY = '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';
+const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || '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';
 
 interface EnhancedChatProps {
   selectedScheme?: any;
