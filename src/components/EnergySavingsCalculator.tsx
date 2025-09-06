@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Calculator, 
   Sun, 
@@ -16,9 +17,13 @@ import {
   Lightbulb,
   Fan,
   Tv,
-  Refrigerator
+  Refrigerator,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+
+const API_KEY = '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';
 
 interface Appliance {
   name: string;
@@ -36,6 +41,7 @@ interface SavingsData {
   systemCost: number;
   subsidy: number;
   netCost: number;
+  aiRecommendation?: string;
 }
 
 const appliances: Appliance[] = [
@@ -47,10 +53,12 @@ const appliances: Appliance[] = [
 ];
 
 export const EnergySavingsCalculator: React.FC = () => {
+  const { toast } = useToast();
   const [monthlyBill, setMonthlyBill] = useState<string>('');
   const [monthlyUnits, setMonthlyUnits] = useState<string>('');
   const [selectedAppliances, setSelectedAppliances] = useState<string[]>([]);
   const [savingsData, setSavingsData] = useState<SavingsData | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   // Pricing constants
   const COST_PER_KW = 50000; // Cost per kW of solar system
@@ -59,7 +67,58 @@ export const EnergySavingsCalculator: React.FC = () => {
   const ANNUAL_INFLATION = 0.05; // 5% annual electricity price increase
   const SYSTEM_DEGRADATION = 0.005; // 0.5% annual system degradation
 
-  const calculateSavings = () => {
+  const getAIRecommendation = async (data: Omit<SavingsData, 'aiRecommendation'>) => {
+    try {
+      const prompt = `Based on this solar system analysis:
+- System Size: ${data.systemSize} kW
+- Monthly Bill: ₹${monthlyBill || 'Not specified'}
+- Monthly Units: ${monthlyUnits || 'Calculated'} kWh
+- Selected Appliances: ${selectedAppliances.join(', ') || 'None specified'}
+- Monthly Savings: ₹${data.monthlySavings}
+- Payback Period: ${data.paybackPeriod.toFixed(1)} years
+- Net Cost: ₹${data.netCost}
+
+Provide a concise recommendation (max 100 words) for this rural Indian household about whether this solar system is good for them. Focus on practical benefits, mention government subsidies, and use simple language suitable for villagers.`;
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'mistralai/mistral-7b-instruct:free',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful solar energy advisor for rural India. Give practical, easy-to-understand advice in simple Hindi-English language.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 150
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result.choices?.[0]?.message?.content || '';
+      }
+    } catch (error) {
+      console.error('AI recommendation error:', error);
+    }
+    return '';
+  };
+
+  const calculateSavings = async () => {
+    if (isCalculating) return;
+    
+    setIsCalculating(true);
+    
+    try {
     let units = 0;
     
     if (monthlyUnits) {
@@ -79,7 +138,10 @@ export const EnergySavingsCalculator: React.FC = () => {
 
     units += applianceConsumption;
 
-    if (units <= 0) return;
+    if (units <= 0) {
+      setIsCalculating(false);
+      return;
+    }
 
     // Recommend system size (assume 80% of consumption can be met by solar)
     const systemSize = Math.ceil((units * 1.2) / 120); // 120 kWh per kW per month
@@ -108,7 +170,7 @@ export const EnergySavingsCalculator: React.FC = () => {
       tenYearSavings += annualSavings;
     }
 
-    setSavingsData({
+    const basicData = {
       systemSize,
       monthlySavings,
       paybackPeriod,
@@ -117,7 +179,31 @@ export const EnergySavingsCalculator: React.FC = () => {
       systemCost,
       subsidy,
       netCost,
+    };
+
+    // Get AI recommendation
+    const aiRecommendation = await getAIRecommendation(basicData);
+
+    setSavingsData({
+      ...basicData,
+      aiRecommendation,
     });
+
+    toast({
+      title: "Calculation Complete!",
+      description: `${systemSize} kW system recommended with ₹${Math.round(monthlySavings)}/month savings`,
+    });
+
+    } catch (error) {
+      console.error('Calculation error:', error);
+      toast({
+        title: "Calculation Error",
+        description: "Please check your inputs and try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCalculating(false);
+    }
   };
 
   const handleApplianceToggle = (applianceName: string) => {
@@ -129,7 +215,10 @@ export const EnergySavingsCalculator: React.FC = () => {
   };
 
   useEffect(() => {
-    calculateSavings();
+    // Only auto-calculate basic validation, not the full AI calculation
+    if ((monthlyBill && parseFloat(monthlyBill) > 0) || (monthlyUnits && parseFloat(monthlyUnits) > 0)) {
+      // Just validate inputs, don't auto-calculate to avoid excessive API calls
+    }
   }, [monthlyBill, monthlyUnits, selectedAppliances]);
 
   const formatCurrency = (amount: number) => {
@@ -209,9 +298,22 @@ export const EnergySavingsCalculator: React.FC = () => {
             </div>
           </div>
 
-          <Button onClick={calculateSavings} className="w-full gap-2">
-            <Sun className="w-4 h-4" />
-            Calculate Solar System
+          <Button 
+            onClick={calculateSavings} 
+            className="w-full gap-2" 
+            disabled={isCalculating}
+          >
+            {isCalculating ? (
+              <>
+                <Brain className="w-4 h-4 animate-spin" />
+                Calculating with AI...
+              </>
+            ) : (
+              <>
+                <Sun className="w-4 h-4" />
+                Calculate Solar System
+              </>
+            )}
           </Button>
         </CardContent>
       </Card>
@@ -235,6 +337,19 @@ export const EnergySavingsCalculator: React.FC = () => {
                 <p className="text-muted-foreground">
                   Perfect size for your energy needs
                 </p>
+
+                {/* AI Recommendation */}
+                {savingsData.aiRecommendation && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-blue-800 mb-1">AI Recommendation</h4>
+                        <p className="text-sm text-blue-700">{savingsData.aiRecommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-3 gap-4 mt-6">
                   <div className="text-center">
