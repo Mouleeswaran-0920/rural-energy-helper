@@ -238,7 +238,6 @@ ${ragContext}`;
     { icon: Wind, label: "Wind Power", query: "What are small wind energy options for villages and rural areas?" },
     { icon: Droplets, label: "Hydro Power", query: "Micro hydro power solutions for remote villages" },
     { icon: Sprout, label: "Biogas", query: "Government biogas schemes and subsidies for rural families" },
-    { icon: Zap, label: "Cost Calculator", query: "Help me calculate the cost of a solar system for my home" },
     { icon: TrendingUp, label: "Subsidies", query: "What government subsidies are available for renewable energy?" }
   ];
 
